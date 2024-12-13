@@ -52,13 +52,15 @@ $> ./bin/count /usr/local/data/sfomuseum-data-flights-2020-latest.db
 ```
 
 ### emit
+
+```
 $> ./bin/emit \
 	-geojson \
 	-emitter-uri 'sql://sqlite3?include=properties.icao:airline=ANZ' \
 	/usr/local/data/sfomuseum-data-flights-2020-latest.db
 
 | jq '.features[]["properties"]["wof:name"]'
-```
+
 "NZ9198 (SFO-IAH)"
 "NZ9147 (BFL-SFO)"
 "NZ9130 (EWR-SFO)"
@@ -77,3 +79,4 @@ $> ./bin/emit \
 ## See also
 
 * https://github.com/whosonfirst/go-whosonfirst-iterate
+* https://pkg.go.dev/database/sql
