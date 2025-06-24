@@ -1,4 +1,5 @@
-package sqlite
+//go:build sqlite3
+package sql
 
 import (
 	"context"
@@ -7,7 +8,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/whosonfirst/go-whosonfirst-iterate/v2/iterator"
 )
 
