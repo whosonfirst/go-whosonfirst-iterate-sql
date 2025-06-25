@@ -1,4 +1,4 @@
-package sqlite
+package sql
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
+	// "sync"
 	"sync/atomic"
 
 	"github.com/whosonfirst/go-ioutil"
@@ -118,22 +118,30 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 
 			defer conn.Close()
 
+			logger.Debug("Query records")
+
 			rows, err := conn.QueryContext(ctx, "SELECT id, body FROM geojson")
 
 			if err != nil {
+
+				logger.Error("Failed to query geojson table", "error", err)
+
 				if !yield(nil, fmt.Errorf("Failed to query 'geojson' table with '%s', %w", uri, err)) {
 					return
 				}
 
 				continue
 			}
+
 			error_ch := make(chan error)
+			done_ch := make(chan bool)
 			rec_ch := make(chan *iterate.Record)
 
-			wg := new(sync.WaitGroup)
+			remaining := 0
 
 			for rows.Next() {
 
+				logger.Debug("Wait for throttle", "remaining", remaining)
 				<-it.throttle
 
 				var wofid int64
@@ -142,6 +150,8 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 				err := rows.Scan(&wofid, &body)
 
 				if err != nil {
+					logger.Error("Failed to scan row", "error", err)
+
 					if !yield(nil, fmt.Errorf("Failed to scan row with '%s', %w", uri, err)) {
 						return
 					}
@@ -149,14 +159,26 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 					continue
 				}
 
-				wg.Add(1)
+				atomic.AddInt64(&it.seen, 1)
+				remaining += 1
+
+				logger.Debug("Process row", "id", wofid, "remaining", remaining)
 
 				go func(ctx context.Context, wofid int64, body string) {
 
+					logger := slog.Default()
+					logger = logger.With("uri", uri)
+					logger = logger.With("id", wofid)
+
 					defer func() {
+						logger.Debug("DONE 1")
+						done_ch <- true
 						it.throttle <- true
-						wg.Done()
+						logger.Debug("DONE 2")
+
 					}()
+
+					logger.Debug("Process row")
 
 					select {
 					case <-ctx.Done():
@@ -178,6 +200,7 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 					rsc, err := ioutil.NewReadSeekCloser(sr)
 
 					if err != nil {
+						logger.Error("Failed to create ReadSeekCloser", "error", err)
 						rsc.Close()
 						error_ch <- fmt.Errorf("Failed to create ReadSeekCloser for record '%d' with '%s', %w", wofid, uri, err)
 						return
@@ -188,6 +211,7 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 						ok, err := iterate.ApplyFilters(ctx, rsc, it.filters)
 
 						if err != nil {
+							logger.Error("Failed to apply filters", "error", err)
 							rsc.Close()
 							error_ch <- fmt.Errorf("Failed to apply query filters to record '%d' with '%s', %w", wofid, uri, err)
 							return
@@ -199,34 +223,46 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 						}
 					}
 
+					logger.Info("Dispatch record")
 					rec_ch <- iterate.NewRecord(iterate.STDIN, rsc)
 
 				}(sql_ctx, wofid, body)
 
+				logger.Info("Next", "count", remaining)
+			}
+
+			err = rows.Err()
+
+			if err != nil {
+				logger.Error("Failed to iterate through rows", "error", err)
+				yield(nil, err)
+				return
+			}
+
+			logger.Info("Waitingin", "count", remaining)
+
+			for remaining > 0 {
 				select {
+				case <-done_ch:
+					remaining -= 1
+					logger.Debug("REMAINING", "count", remaining)
 				case err := <-error_ch:
 
+					logger.Debug("SAD", "error", err)
 					if !yield(nil, err) {
 						return
 					}
 				case rec := <-rec_ch:
 
+					logger.Debug("RECORD", "path", rec.Path)
 					if !yield(rec, nil) {
 						return
 					}
 				default:
 					// pass
 				}
+
 			}
-
-			wg.Wait()
-
-			err = rows.Err()
-
-			if err != nil {
-				yield(nil, err)
-			}
-
 		}
 	}
 }

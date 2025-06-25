@@ -5,6 +5,7 @@ package sql
 import (
 	"context"
 	"io"
+	"log/slog"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +13,9 @@ import (
 )
 
 func TestSQLiteEmitter(t *testing.T) {
+
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+	slog.Debug("Verbose logging enabled")
 
 	ctx := context.Background()
 
@@ -31,6 +35,8 @@ func TestSQLiteEmitter(t *testing.T) {
 
 	for iter_uri, expected_count := range uris {
 
+		slog.Info("Process", "uri", iter_uri)
+
 		count := int32(0)
 
 		iter, err := iterate.NewIterator(ctx, iter_uri)
@@ -39,12 +45,14 @@ func TestSQLiteEmitter(t *testing.T) {
 			t.Fatalf("Failed to create new iterator, %v", err)
 		}
 
-		for rec, err := range iter.Iterate(abs_path) {
+		for rec, err := range iter.Iterate(ctx, abs_path) {
 
 			if err != nil {
 				t.Fatalf("Failed to walk '%s', %v", abs_path, err)
 				break
 			}
+
+			slog.Info("Iterate", "record", rec.Path)
 
 			_, err = io.ReadAll(rec.Body)
 
@@ -68,7 +76,7 @@ func TestSQLiteEmitter(t *testing.T) {
 		}
 
 		if count != expected_count {
-			t.Fatalf("Unexpected count for '%s'. Expected %d but got %d", uri, expected, count)
+			t.Fatalf("Unexpected count for '%s'. Expected %d but got %d", iter_uri, expected_count, count)
 		}
 	}
 }
