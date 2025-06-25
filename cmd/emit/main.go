@@ -1,5 +1,8 @@
 package main
 
+// Remember: support for individual database/sql engines is enabled through the use of build tags
+// See sqlite3.go for an example
+
 import (
 	"context"
 	"log"

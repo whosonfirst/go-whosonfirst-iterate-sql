@@ -8,9 +8,11 @@ Go package implementing `whosonfirst/go-whosonfirst-iterate/v3.Iterator` functio
 
 ## Building (database support)
 
-This package uses Go language build tags to enable support for individual `database/sql` compatiable databases. Currently only the [mattn/go-sqlite3](#) package is available by default when the `sqlite3` tag is defined. Other databases can be added as needed (see [sqlite3.go](sqlite3.go) for an example).
+This package uses Go language build tags to enable support for individual `database/sql` compatiable databases. Currently only the [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) package is available by default when the `sqlite3` tag is defined. Other databases can be added as needed (see [sqlite3.go](sqlite3.go) for an example).
 
-The only requirement is a `geojson` table as defined by the [whosonfirst/go-whosonfirst-database](https://github.com/whosonfirst/go-whosonfirst-database/tree/main/sql/tables) package.
+The only requirement is a `geojson` table as defined by the [whosonfirst/go-whosonfirst-database](https://github.com/whosonfirst/go-whosonfirst-database/tree/main/sql/tables) package which can be produced using tools in the [whosonfirst/go-whosonfirst-database-sqlite](https://github.com/whosonfirst/go-whosonfirst-database-sqlite) package.
+
+Database connections are opened using the [sfomuseum/go-database/sql.OpenWithURI](https://github.com/sfomuseum/go-database/blob/main/sql/database.go#L36) utility method which in turn will apply some [opinionated database PRAGAM](https://github.com/sfomuseum/go-database/blob/main/sql/sqlite.go#L10) for SQLite databases.
 
 ## Example
 
@@ -102,6 +104,13 @@ Valid options are:
     	Enable verbose (debug) logging.
 ```	
 
+For example:
+
+```
+$> ./bin/count -iterator-uri 'sql://sqlite3' ./fixtures/sfomuseum-maps.db 
+2025/06/25 06:18:51 INFO Counted records count=37 time=3.301824ms
+``
+
 ### emit
 
 Emit records in one or more whosonfirst/go-whosonfirst-iterate/v3.Iterator sources as structured data.
@@ -127,8 +136,29 @@ Valid options are:
     	Enable verbose (debug) logging.
 ```
 
+For example:
+
+```
+$> ./bin/emit -geojson -iterator-uri 'sql://sqlite3' ./fixtures/sfomuseum-maps.db | jq -r '.features[]["properties"]["wof:name"]'
+SFO (2018)
+SFO (1947)
+SFO (1980)
+SFO (1949)
+SFO (1956)
+SFO (1997)
+SFO (1989)
+SFO (1985)
+SFO (2017)
+SFO (1943)
+SFO (1960)
+...and so on
+```
 
 ## See also
 
 * https://github.com/whosonfirst/go-whosonfirst-iterate
 * https://pkg.go.dev/database/sql
+* https://github.com/mattn/go-sqlite3
+* https://github.com/whosonfirst/go-whosonfirst-database
+* https://github.com/whosonfirst/go-whosonfirst-database-sqlite
+* https://github.com/sfomuseum/go-database/

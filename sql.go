@@ -2,7 +2,6 @@ package sql
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -10,9 +9,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	// "sync"
 	"sync/atomic"
 
+	sfom_sql "github.com/sfomuseum/go-database/sql"
 	"github.com/whosonfirst/go-ioutil"
 	"github.com/whosonfirst/go-whosonfirst-iterate/v3"
 	"github.com/whosonfirst/go-whosonfirst-iterate/v3/filters"
@@ -20,12 +19,17 @@ import (
 
 func init() {
 	ctx := context.Background()
-	iterate.RegisterIterator(ctx, "sql", NewSQLIterator)
+	err := iterate.RegisterIterator(ctx, "sql", NewSQLIterator)
+
+	if err != nil {
+		panic(err)
+	}
 }
 
-// SQLIterator implements the `Iterator` interface for crawling records in a SQL database (specifically `database/sql` database with a 'geojson' table produced by `whosonfirst/go-whosonfirst-sqlite-features` and `whosonfirst/go-whosonfirst-sqlite-features-index`).
+// SQLIterator implements the `Iterator` interface for crawling records in `database/sql` databases with a "geojson" table as defined by the `whosonfirst/go-whosonfirst-database` package.
 type SQLIterator struct {
 	iterate.Iterator
+	// The `database/sql` engine (driver) to use for database connections.
 	engine string
 	// filters is a `whosonfirst/go-whosonfirst-iterate/v32/filters.Filters` instance used to include or exclude specific records from being crawled.
 	filters filters.Filters
@@ -41,7 +45,7 @@ type SQLIterator struct {
 //
 //	sql://{ENGINE}?{PARAMETERS}
 //
-// {PARAMETERS} may be:
+// Where {ENGINE} is a registered `database/sql` driver and {PARAMETERS} may be:
 // * `?include=` Zero or more `aaronland/go-json-query` query strings containing rules that must match for a document to be considered for further processing.
 // * `?exclude=` Zero or more `aaronland/go-json-query`	query strings containing rules that if matched will prevent a document from being considered for further processing.
 // * `?include_mode=` A valid `aaronland/go-json-query` query mode string for testing inclusion rules.
@@ -109,7 +113,15 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 			logger := slog.Default()
 			logger = logger.With("uri", uri)
 
-			conn, err := sql.Open(it.engine, uri)
+			db_q := url.Values{}
+			db_q.Set("dsn", uri)
+
+			db_uri := url.URL{}
+			db_uri.Scheme = "sql"
+			db_uri.Host = it.engine
+			db_uri.RawQuery = db_q.Encode()
+
+			conn, err := sfom_sql.OpenWithURI(ctx, db_uri.String())
 
 			if err != nil {
 				logger.Error("Failed to open database connection", "error", err)
@@ -158,8 +170,6 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 				atomic.AddInt64(&it.seen, 1)
 				remaining += 1
 
-				logger.Debug("Process row", "id", wofid, "remaining", remaining)
-
 				go func(ctx context.Context, wofid int64, body string) {
 
 					logger := slog.Default()
@@ -177,7 +187,6 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 						// pass
 					}
 
-					logger.Debug("Wait for throttle", "remaining", remaining)
 					<-it.throttle
 
 					defer func() {

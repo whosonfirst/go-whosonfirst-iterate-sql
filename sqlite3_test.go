@@ -1,3 +1,5 @@
+//go:build sqlite3
+
 package sql
 
 import (
@@ -10,7 +12,7 @@ import (
 	"github.com/whosonfirst/go-whosonfirst-iterate/v3"
 )
 
-func TestSQLiteIterator(t *testing.T) {
+func TestSQLite3Iterator(t *testing.T) {
 
 	// slog.SetLogLoggerLevel(slog.LevelDebug)
 	// slog.Debug("Verbose logging enabled")
