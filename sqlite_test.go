@@ -1,14 +1,14 @@
 //go:build sqlite3
+
 package sql
 
 import (
 	"context"
 	"io"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
 
-	"github.com/whosonfirst/go-whosonfirst-iterate/v2/iterator"
+	"github.com/whosonfirst/go-whosonfirst-iterate/v3"
 )
 
 func TestSQLiteEmitter(t *testing.T) {
@@ -33,25 +33,42 @@ func TestSQLiteEmitter(t *testing.T) {
 
 		count := int32(0)
 
-		iter_cb := func(ctx context.Context, path string, r io.ReadSeeker, args ...interface{}) error {
-			atomic.AddInt32(&count, 1)
-			return nil
-		}
-
-		iter, err := iterator.NewIterator(ctx, iter_uri, iter_cb)
+		iter, err := iterate.NewIterator(ctx, iter_uri)
 
 		if err != nil {
 			t.Fatalf("Failed to create new iterator, %v", err)
 		}
 
-		err = iter.IterateURIs(ctx, abs_path)
+		for rec, err := range iter.Iterate(abs_path) {
 
-		if err != nil {
-			t.Fatalf("Failed to iterate %s, %v", abs_path, err)
+			if err != nil {
+				t.Fatalf("Failed to walk '%s', %v", abs_path, err)
+				break
+			}
+
+			_, err = io.ReadAll(rec.Body)
+
+			if err != nil {
+				t.Fatalf("Failed to read body for %s, %v", rec.Path, err)
+			}
+
+			_, err = rec.Body.Seek(0, 0)
+
+			if err != nil {
+				t.Fatalf("Failed to rewind body for %s, %v", rec.Path, err)
+			}
+
+			_, err = io.ReadAll(rec.Body)
+
+			if err != nil {
+				t.Fatalf("Failed second read body for %s, %v", rec.Path, err)
+			}
+
+			count += 1
 		}
 
 		if count != expected_count {
-			t.Fatalf("Unexpected count for '%s': %d (expected: %d)", iter_uri, count, expected_count)
+			t.Fatalf("Unexpected count for '%s'. Expected %d but got %d", uri, expected, count)
 		}
 	}
 }

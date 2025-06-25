@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	_ "github.com/whosonfirst/go-whosonfirst-iterate-sql/v3"
 	"github.com/whosonfirst/go-whosonfirst-iterate/v3/app/emit"
 )
 
