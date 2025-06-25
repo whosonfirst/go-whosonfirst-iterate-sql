@@ -112,13 +112,12 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 			conn, err := sql.Open(it.engine, uri)
 
 			if err != nil {
+				logger.Error("Failed to open database connection", "error", err)
 				yield(nil, err)
 				return
 			}
 
 			defer conn.Close()
-
-			logger.Debug("Query records")
 
 			rows, err := conn.QueryContext(ctx, "SELECT id, body FROM geojson")
 
@@ -140,9 +139,6 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 			remaining := 0
 
 			for rows.Next() {
-
-				logger.Debug("Wait for throttle", "remaining", remaining)
-				<-it.throttle
 
 				var wofid int64
 				var body string
@@ -171,14 +167,8 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 					logger = logger.With("id", wofid)
 
 					defer func() {
-						logger.Debug("DONE 1")
 						done_ch <- true
-						it.throttle <- true
-						logger.Debug("DONE 2")
-
 					}()
-
-					logger.Debug("Process row")
 
 					select {
 					case <-ctx.Done():
@@ -186,6 +176,13 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 					default:
 						// pass
 					}
+
+					logger.Debug("Wait for throttle", "remaining", remaining)
+					<-it.throttle
+
+					defer func() {
+						it.throttle <- true
+					}()
 
 					// uri := fmt.Sprintf("sqlite://%s#geojson:%d", path, wofid)
 
@@ -223,12 +220,9 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 						}
 					}
 
-					logger.Info("Dispatch record")
 					rec_ch <- iterate.NewRecord(iterate.STDIN, rsc)
 
 				}(sql_ctx, wofid, body)
-
-				logger.Info("Next", "count", remaining)
 			}
 
 			err = rows.Err()
@@ -239,22 +233,15 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 				return
 			}
 
-			logger.Info("Waitingin", "count", remaining)
-
 			for remaining > 0 {
 				select {
 				case <-done_ch:
 					remaining -= 1
-					logger.Debug("REMAINING", "count", remaining)
 				case err := <-error_ch:
-
-					logger.Debug("SAD", "error", err)
 					if !yield(nil, err) {
 						return
 					}
 				case rec := <-rec_ch:
-
-					logger.Debug("RECORD", "path", rec.Path)
 					if !yield(rec, nil) {
 						return
 					}
@@ -263,6 +250,7 @@ func (it *SQLIterator) Iterate(ctx context.Context, uris ...string) iter.Seq2[*i
 				}
 
 			}
+
 		}
 	}
 }

@@ -12,10 +12,10 @@ import (
 	"github.com/whosonfirst/go-whosonfirst-iterate/v3"
 )
 
-func TestSQLiteEmitter(t *testing.T) {
+func TestSQLiteIterator(t *testing.T) {
 
-	slog.SetLogLoggerLevel(slog.LevelDebug)
-	slog.Debug("Verbose logging enabled")
+	// slog.SetLogLoggerLevel(slog.LevelDebug)
+	// slog.Debug("Verbose logging enabled")
 
 	ctx := context.Background()
 
@@ -51,8 +51,6 @@ func TestSQLiteEmitter(t *testing.T) {
 				t.Fatalf("Failed to walk '%s', %v", abs_path, err)
 				break
 			}
-
-			slog.Info("Iterate", "record", rec.Path)
 
 			_, err = io.ReadAll(rec.Body)
 
