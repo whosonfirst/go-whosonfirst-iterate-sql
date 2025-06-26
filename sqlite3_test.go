@@ -45,8 +45,6 @@ func TestSQLite3Iterator(t *testing.T) {
 			t.Fatalf("Failed to create new iterator, %v", err)
 		}
 
-		defer iter.Close()
-
 		for rec, err := range iter.Iterate(ctx, abs_path) {
 
 			if err != nil {
@@ -78,6 +76,12 @@ func TestSQLite3Iterator(t *testing.T) {
 
 		if count != expected_count {
 			t.Fatalf("Unexpected count for '%s'. Expected %d but got %d", iter_uri, expected_count, count)
+		}
+
+		err = iter.Close()
+
+		if err != nil {
+			t.Fatalf("Failed to close iterator (%s), %v", iter_uri, err)
 		}
 	}
 }

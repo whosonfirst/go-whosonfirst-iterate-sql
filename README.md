@@ -37,7 +37,8 @@ func main() {
 	ctx := context.Background()
 	
 	iter, _:= iterate.NewIterator(ctx, iterator_uri)
-
+	defer iter.Close()
+	
 	paths := flag.Args()
 	
 	for rec, _ := range iter.Iterate(ctx, paths...) {
