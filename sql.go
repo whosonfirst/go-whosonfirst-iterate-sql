@@ -273,3 +273,8 @@ func (it *SQLIterator) Seen() int64 {
 func (it *SQLIterator) IsIterating() bool {
 	return it.iterating.Load()
 }
+
+// Close performs any implementation specific tasks before terminating the iterator.
+func (it *SQLIterator) Close() error {
+	return nil
+}

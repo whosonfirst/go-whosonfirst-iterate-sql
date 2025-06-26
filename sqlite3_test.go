@@ -45,6 +45,8 @@ func TestSQLite3Iterator(t *testing.T) {
 			t.Fatalf("Failed to create new iterator, %v", err)
 		}
 
+		defer iter.Close()
+
 		for rec, err := range iter.Iterate(ctx, abs_path) {
 
 			if err != nil {
